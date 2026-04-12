@@ -3,13 +3,20 @@ pragma solidity ^0.8.24;
 
 import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 
+interface IERC20 {
+	function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
+
 interface IERC20Metadata {
 	function decimals() external view returns (uint8);
 }
 
-
-
 contract LendingpoolA {
+	struct UserAccount {
+		uint256 collateralWbtc;
+		uint256 debtStable;
+	}
+
 	uint256 internal constant RAY = 1e18;
 
 	// 0.75e18
@@ -29,9 +36,13 @@ contract LendingpoolA {
 	address internal immutable i_stablecoinAddress;
 	IPriceOracle internal immutable i_oracle;
 
+	mapping(address => UserAccount) internal s_accounts;
+
 	uint256 internal s_supplyIndex;
 	uint256 internal s_borrowIndex;
 	uint256 internal s_lastAccrualBlock;
+
+	event Deposited(address indexed user, uint256 amount);
 
 	constructor(
 		address wbtcAddress,
@@ -69,6 +80,21 @@ contract LendingpoolA {
 
 		s_supplyIndex = RAY;
 		s_borrowIndex = RAY;
+		s_lastAccrualBlock = block.number;
+	}
+
+	function deposit(uint256 amount) external {
+		require(amount > 0, "amount=0");
+		_accrueInterest();
+
+		bool ok = IERC20(i_wbtcAddress).transferFrom(msg.sender, address(this), amount);
+		require(ok, "wbtc transferFrom failed");
+
+		s_accounts[msg.sender].collateralWbtc += amount;
+		emit Deposited(msg.sender, amount);
+	}
+
+	function _accrueInterest() internal {
 		s_lastAccrualBlock = block.number;
 	}
 }
