@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
+
 interface IERC20Metadata {
 	function decimals() external view returns (uint8);
 }
 
-interface IPriceOracle {
-	function getWbtcPrice() external view returns (uint256);
-}
+
 
 contract LendingpoolA {
 	uint256 internal constant RAY = 1e18;
