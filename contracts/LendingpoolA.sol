@@ -133,6 +133,19 @@ contract LendingpoolA {
 		return i_reserveFactor;
 	}
 
+	function getBorrowRatePerBlock() external view returns (uint256) {
+		return _borrowRatePerBlock(_utilizationRate());
+	}
+
+	function getSupplyRatePerBlock() external view returns (uint256) {
+		uint256 utilization = _utilizationRate();
+		return _supplyRatePerBlock(utilization, _borrowRatePerBlock(utilization));
+	}
+
+	function getUtilizationRate() external view returns (uint256) {
+		return _utilizationRate();
+	}
+
 	function getWbtcAddress() external view returns (address) {
 		return i_wbtcAddress;
 	}
@@ -191,6 +204,36 @@ contract LendingpoolA {
 
 	function _availableLiquidity() internal view returns (uint256) {
 		return IERC20(i_stablecoinAddress).balanceOf(address(this));
+	}
+
+	function _utilizationRate() internal view returns (uint256) {
+		uint256 totalSupply = _totalSupplyCurrent();
+		if (totalSupply == 0) {
+			return 0;
+		}
+		uint256 totalDebt = _totalDebtCurrent();
+		if (totalDebt == 0) {
+			return 0;
+		}
+		if (totalDebt >= totalSupply) {
+			return RAY;
+		}
+		return (totalDebt * RAY) / totalSupply;
+	}
+
+	function _borrowRatePerBlock(uint256 utilization) internal view returns (uint256) {
+		if (utilization <= i_kinkUtilization) {
+			return i_baseBorrowRatePerBlock + ((utilization * i_slope1PerBlock) / i_kinkUtilization);
+		}
+
+		uint256 excessUtilization = utilization - i_kinkUtilization;
+		uint256 highPart = (excessUtilization * i_slope2PerBlock) / (RAY - i_kinkUtilization);
+		return i_baseBorrowRatePerBlock + i_slope1PerBlock + highPart;
+	}
+
+	function _supplyRatePerBlock(uint256 utilization, uint256 borrowRate) internal view returns (uint256) {
+		uint256 oneMinusReserve = RAY - i_reserveFactor;
+		return (((borrowRate * utilization) / RAY) * oneMinusReserve) / RAY;
 	}
 
 	function _accrueInterest() internal {
