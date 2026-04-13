@@ -262,4 +262,8 @@ contract LendingpoolA {
 
 		emit InterestAccrued(s_borrowIndex, s_supplyIndex, borrowRate, supplyRate, utilization);
 	}
+
+	function _divUp(uint256 a, uint256 b) internal pure returns (uint256) {
+		return a == 0 ? 0 : ((a - 1) / b) + 1;
+	}
 }
