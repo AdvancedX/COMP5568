@@ -42,6 +42,8 @@ contract LendingpoolA {
 	uint256 internal s_borrowIndex;
 	uint256 internal s_lastAccrualBlock;
 
+	mapping(address => uint256) internal s_scaledDebt;
+
 	event Deposited(address indexed user, uint256 amount);
 
 	constructor(
@@ -116,6 +118,25 @@ contract LendingpoolA {
 
 	function getCollateralValue(address user) external view returns (uint256) {
 		return _getCollateralValue(user);
+	}
+
+	function getHealthFactor(address user) external view returns (uint256) {
+		return _healthFactor(user);
+	}
+
+	function _debtOf(address user) internal view returns (uint256) {
+		return (s_scaledDebt[user] * s_borrowIndex) / RAY;
+	}
+
+	function _healthFactor(address user) internal view returns (uint256) {
+		uint256 debtValue = _debtOf(user);
+		if (debtValue == 0) {
+			return type(uint256).max;
+		}
+
+		uint256 collateralValue = _getCollateralValue(user);
+		uint256 adjustedCollateral = (collateralValue * i_liquidationThreshold) / RAY;
+		return (adjustedCollateral * RAY) / debtValue;
 	}
 
 	function _getCollateralValue(address user) internal view returns (uint256) {
