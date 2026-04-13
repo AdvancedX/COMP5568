@@ -54,6 +54,13 @@ contract LendingpoolA {
 
 	event Deposited(address indexed user, uint256 amount);
 	event Withdrawn(address indexed user, uint256 amount);
+	event InterestAccrued(
+		uint256 borrowIndex,
+		uint256 supplyIndex,
+		uint256 borrowRatePerBlock,
+		uint256 supplyRatePerBlock,
+		uint256 utilizationRate
+	);
 
 	constructor(
 		address wbtcAddress,
@@ -237,6 +244,22 @@ contract LendingpoolA {
 	}
 
 	function _accrueInterest() internal {
+		uint256 blocksElapsed = block.number - s_lastAccrualBlock;
+		if (blocksElapsed == 0) {
+			return;
+		}
+
+		uint256 utilization = _utilizationRate();
+		uint256 borrowRate = _borrowRatePerBlock(utilization);
+		uint256 supplyRate = _supplyRatePerBlock(utilization, borrowRate);
+
+		uint256 borrowFactor = RAY + (borrowRate * blocksElapsed);
+		uint256 supplyFactor = RAY + (supplyRate * blocksElapsed);
+
+		s_borrowIndex = (s_borrowIndex * borrowFactor) / RAY;
+		s_supplyIndex = (s_supplyIndex * supplyFactor) / RAY;
 		s_lastAccrualBlock = block.number;
+
+		emit InterestAccrued(s_borrowIndex, s_supplyIndex, borrowRate, supplyRate, utilization);
 	}
 }
