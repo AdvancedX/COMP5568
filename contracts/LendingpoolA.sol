@@ -94,6 +94,26 @@ contract LendingpoolA {
 		emit Deposited(msg.sender, amount);
 	}
 
+	function getCollateralFactor() external view returns (uint256) {
+		return i_collateralFactor;
+	}
+
+	function getLiquidationThreshold() external view returns (uint256) {
+		return i_liquidationThreshold;
+	}
+
+	function getReserveFactor() external view returns (uint256) {
+		return i_reserveFactor;
+	}
+
+	function getWbtcAddress() external view returns (address) {
+		return i_wbtcAddress;
+	}
+
+	function getStablecoinAddress() external view returns (address) {
+		return i_stablecoinAddress;
+	}
+
 	function _accrueInterest() internal {
 		s_lastAccrualBlock = block.number;
 	}
