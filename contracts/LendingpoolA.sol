@@ -149,6 +149,17 @@ contract LendingpoolA {
 		return _healthFactor(user);
 	}
 
+	function _maxBorrowable(address user) internal view returns (uint256) {
+		uint256 collateralValue = _getCollateralValue(user);
+		uint256 limit = (collateralValue * i_collateralFactor) / RAY;
+
+		uint256 debt = _debtOf(user);
+		if (debt >= limit) {
+			return 0;
+		}
+		return limit - debt;
+	}
+
 	function _debtOf(address user) internal view returns (uint256) {
 		return (s_scaledDebt[user] * s_borrowIndex) / RAY;
 	}
