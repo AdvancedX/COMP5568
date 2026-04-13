@@ -114,6 +114,16 @@ contract LendingpoolA {
 		return i_stablecoinAddress;
 	}
 
+	function getCollateralValue(address user) external view returns (uint256) {
+		return _getCollateralValue(user);
+	}
+
+	function _getCollateralValue(address user) internal view returns (uint256) {
+		uint256 wbtcPrice = i_oracle.getWbtcPrice();
+		uint256 collateralWbtc = s_accounts[user].collateralWbtc;
+		return (collateralWbtc * wbtcPrice) / (10 ** i_wbtcDecimals);
+	}
+
 	function _accrueInterest() internal {
 		s_lastAccrualBlock = block.number;
 	}
