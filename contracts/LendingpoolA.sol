@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 
 interface IERC20 {
+	function balanceOf(address account) external view returns (uint256);
+
 	function transfer(address to, uint256 amount) external returns (bool);
 
 	function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -44,6 +46,10 @@ contract LendingpoolA {
 	uint256 internal s_borrowIndex;
 	uint256 internal s_lastAccrualBlock;
 
+	uint256 internal s_totalScaledSupply;
+	uint256 internal s_totalScaledDebt;
+
+	mapping(address => uint256) internal s_scaledSupply;
 	mapping(address => uint256) internal s_scaledDebt;
 
 	event Deposited(address indexed user, uint256 amount);
@@ -162,6 +168,18 @@ contract LendingpoolA {
 		uint256 wbtcPrice = i_oracle.getWbtcPrice();
 		uint256 collateralWbtc = s_accounts[user].collateralWbtc;
 		return (collateralWbtc * wbtcPrice) / (10 ** i_wbtcDecimals);
+	}
+
+	function _totalSupplyCurrent() internal view returns (uint256) {
+		return (s_totalScaledSupply * s_supplyIndex) / RAY;
+	}
+
+	function _totalDebtCurrent() internal view returns (uint256) {
+		return (s_totalScaledDebt * s_borrowIndex) / RAY;
+	}
+
+	function _availableLiquidity() internal view returns (uint256) {
+		return IERC20(i_stablecoinAddress).balanceOf(address(this));
 	}
 
 	function _accrueInterest() internal {
