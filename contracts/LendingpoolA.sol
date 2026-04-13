@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 
 interface IERC20 {
+	function transfer(address to, uint256 amount) external returns (bool);
+
 	function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
@@ -45,6 +47,7 @@ contract LendingpoolA {
 	mapping(address => uint256) internal s_scaledDebt;
 
 	event Deposited(address indexed user, uint256 amount);
+	event Withdrawn(address indexed user, uint256 amount);
 
 	constructor(
 		address wbtcAddress,
@@ -94,6 +97,22 @@ contract LendingpoolA {
 
 		s_accounts[msg.sender].collateralWbtc += amount;
 		emit Deposited(msg.sender, amount);
+	}
+
+	function withdraw(uint256 amount) external {
+		require(amount > 0, "amount=0");
+		_accrueInterest();
+
+		UserAccount storage account = s_accounts[msg.sender];
+		require(account.collateralWbtc >= amount, "insufficient collateral");
+
+		account.collateralWbtc -= amount;
+		require(_healthFactor(msg.sender) >= RAY, "health<1");
+
+		bool ok = IERC20(i_wbtcAddress).transfer(msg.sender, amount);
+		require(ok, "wbtc transfer failed");
+
+		emit Withdrawn(msg.sender, amount);
 	}
 
 	function getCollateralFactor() external view returns (uint256) {
