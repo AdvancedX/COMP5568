@@ -1,16 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {LendingpoolA} from "../LendingpoolA.sol";
+import {LendingpoolA} from "./LendingpoolA.sol";
 
-/**
- * @title LendingPoolV5
- * @dev LendingPool 草稿版本 V5 - 完整版
- * @notice 在 V4 基础上增加查询函数，完成 LendingPoolB 所有功能
- */
-contract LendingPoolV5 is LendingpoolA {
-    uint256 internal constant RAY = 1e18;
-
+contract LendingpoolB is LendingpoolA {
     constructor(
         address wbtcAddress,
         address stablecoinAddress,
@@ -37,10 +30,6 @@ contract LendingPoolV5 is LendingpoolA {
         )
     {}
 
-    /**
-     * @notice 存入稳定币，为借贷池提供流动性
-     * @param amount 存入的稳定币数量
-     */
     function supplyStable(uint256 amount) external {
         require(amount > 0, "amount=0");
         _accrueInterest();
@@ -56,10 +45,6 @@ contract LendingPoolV5 is LendingpoolA {
         emit SuppliedStable(msg.sender, amount);
     }
 
-    /**
-     * @notice 提取存入的稳定币
-     * @param amount 提取的稳定币数量
-     */
     function withdrawStable(uint256 amount) external {
         require(amount > 0, "amount=0");
         _accrueInterest();
@@ -83,10 +68,6 @@ contract LendingPoolV5 is LendingpoolA {
         emit WithdrewStable(msg.sender, amount);
     }
 
-    /**
-     * @notice 使用 WBTC 抵押品借款
-     * @param amount 借款金额
-     */
     function borrow(uint256 amount) external {
         require(amount > 0, "amount=0");
         _accrueInterest();
@@ -106,10 +87,6 @@ contract LendingPoolV5 is LendingpoolA {
         emit Borrowed(msg.sender, amount);
     }
 
-    /**
-     * @notice 归还借款
-     * @param amount 还款金额
-     */
     function repay(uint256 amount) external {
         require(amount > 0, "amount=0");
         _accrueInterest();
@@ -133,38 +110,18 @@ contract LendingPoolV5 is LendingpoolA {
         emit Repaid(msg.sender, repayAmount);
     }
 
-    /**
-     * @notice 获取用户账户信息
-     * @param user 用户地址
-     * @return 用户的抵押品和债务信息
-     */
     function getUserAccount(address user) external view returns (UserAccount memory) {
         return UserAccount({collateralWbtc: s_accounts[user].collateralWbtc, debtStable: _debtOf(user)});
     }
 
-    /**
-     * @notice 获取用户的稳定币供应余额
-     * @param user 用户地址
-     * @return 用户的供应余额
-     */
     function getSupplierBalance(address user) public view returns (uint256) {
         return (s_scaledSupply[user] * s_supplyIndex) / RAY;
     }
 
-    /**
-     * @notice 获取用户的债务价值
-     * @param user 用户地址
-     * @return 用户的债务金额
-     */
     function getDebtValue(address user) external view returns (uint256) {
         return _debtOf(user);
     }
 
-    /**
-     * @notice 获取用户最大可借款额度
-     * @param user 用户地址
-     * @return 最大可借款金额
-     */
     function getMaxBorrowable(address user) external view returns (uint256) {
         return _maxBorrowable(user);
     }
