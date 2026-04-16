@@ -9,6 +9,9 @@ contract PriceOracle is IPriceOracle, Ownable {
     uint256 private constant MAX_UP_BPS = 500;
     uint256 private constant MAX_DOWN_BPS = 500;
     uint256 private constant BPS_BASE = 10000;
+    uint256 private constant STEP_100 = 100;
+    uint256 private constant STEP_1000 = 1000;
+    uint256 private constant STEP_10000 = 10000;
 
     uint256 private s_wbtcPrice;
 
@@ -48,5 +51,36 @@ contract PriceOracle is IPriceOracle, Ownable {
 
         s_wbtcPrice = newPrice;
         emit PriceUpdated(newPrice);
+    }
+
+    function updatePriceByStep(int256 deltaUsd) external onlyOwner {
+        require(_isAllowedStep(deltaUsd), "invalid step");
+
+        uint256 oldPrice = s_wbtcPrice;
+        uint256 absDeltaUsd = uint256(deltaUsd < 0 ? -deltaUsd : deltaUsd);
+        uint256 delta = absDeltaUsd * RAY;
+
+        uint256 newPrice;
+        if (deltaUsd > 0) {
+            newPrice = oldPrice + delta;
+        } else {
+            newPrice = oldPrice > delta ? oldPrice - delta : RAY;
+            if (newPrice == 0) {
+                newPrice = RAY;
+            }
+        }
+
+        s_wbtcPrice = newPrice;
+        emit PriceUpdated(newPrice);
+    }
+
+    function _isAllowedStep(int256 step) private pure returns (bool) {
+        return
+            step == int256(STEP_100) ||
+            step == -int256(STEP_100) ||
+            step == int256(STEP_1000) ||
+            step == -int256(STEP_1000) ||
+            step == int256(STEP_10000) ||
+            step == -int256(STEP_10000);
     }
 }
