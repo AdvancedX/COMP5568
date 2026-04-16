@@ -25,7 +25,7 @@ contract LendingPool {
 
     uint256 private immutable i_collateralFactor;
     uint256 private immutable i_liquidationThreshold;
-    uint256 private immutable i_reserveFactor;
+        uint256 private immutable i_reserveFactor;
 
     // Dynamic rate model: borrow rate is piecewise-linear around kink utilization.
     uint256 private immutable i_baseBorrowRatePerBlock;
@@ -35,6 +35,7 @@ contract LendingPool {
     uint8 private immutable i_wbtcDecimals;
 
     address private immutable i_wbtcAddress;
+    uint256 private constant LIQUIDATION_BONUS = 5e16; // 5%
     address private immutable i_stablecoinAddress;
     IPriceOracle private immutable i_oracle;
 
@@ -54,6 +55,12 @@ contract LendingPool {
     event Withdrawn(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 amount);
     event Repaid(address indexed user, uint256 amount);
+    event Liquidated(
+        address indexed liquidator,
+        address indexed user,
+        uint256 repaidStable,
+        uint256 seizedWbtc
+    );
     event SuppliedStable(address indexed user, uint256 amount);
     event WithdrewStable(address indexed user, uint256 amount);
     event InterestAccrued(
@@ -222,6 +229,54 @@ contract LendingPool {
         return i_liquidationThreshold;
     }
 
+    function getLiquidationBonus() external pure returns (uint256) {
+        return LIQUIDATION_BONUS;
+    }
+
+    function liquidate(address user, uint256 repayAmount) external {
+        require(user != address(0), "user=0");
+        require(repayAmount > 0, "amount=0");
+        _accrueInterest();
+
+        require(_healthFactor(user) < RAY, "health>=1");
+
+        UserAccount storage account = s_accounts[user];
+        uint256 debt = _debtOf(user);
+        require(debt > 0, "no debt");
+
+        uint256 maxRepayByCollateral = _maxRepayByCollateral(account.collateralWbtc);
+        uint256 repayActual = repayAmount;
+        if (repayActual > debt) {
+            repayActual = debt;
+        }
+        if (repayActual > maxRepayByCollateral) {
+            repayActual = maxRepayByCollateral;
+        }
+        require(repayActual > 0, "repay too small");
+
+        bool stableOk = IERC20(i_stablecoinAddress).transferFrom(msg.sender, address(this), repayActual);
+        require(stableOk, "stable transferFrom failed");
+
+        uint256 scaledToBurn = _divUp(repayActual * RAY, s_borrowIndex);
+        uint256 userScaled = s_scaledDebt[user];
+        if (scaledToBurn > userScaled) {
+            scaledToBurn = userScaled;
+        }
+        s_scaledDebt[user] = userScaled - scaledToBurn;
+        s_totalScaledDebt -= scaledToBurn;
+
+        uint256 collateralToSeize = _collateralForRepay(repayActual);
+        if (collateralToSeize > account.collateralWbtc) {
+            collateralToSeize = account.collateralWbtc;
+        }
+        account.collateralWbtc -= collateralToSeize;
+
+        bool wbtcOk = IERC20(i_wbtcAddress).transfer(msg.sender, collateralToSeize);
+        require(wbtcOk, "wbtc transfer failed");
+
+        emit Liquidated(msg.sender, user, repayActual, collateralToSeize);
+    }
+
     function getReserveFactor() external view returns (uint256) {
         return i_reserveFactor;
     }
@@ -297,6 +352,29 @@ contract LendingPool {
 
     function _debtOf(address user) internal view returns (uint256) {
         return (s_scaledDebt[user] * s_borrowIndex) / RAY;
+    }
+
+    function _maxRepayByCollateral(uint256 collateralWbtc) internal view returns (uint256) {
+        if (collateralWbtc == 0) {
+            return 0;
+        }
+
+        uint256 wbtcPrice = i_oracle.getWbtcPrice();
+        if (wbtcPrice == 0) {
+            return 0;
+        }
+
+        uint256 collateralValue = (collateralWbtc * wbtcPrice) / (10 ** i_wbtcDecimals);
+        return (collateralValue * RAY) / (RAY + LIQUIDATION_BONUS);
+    }
+
+    function _collateralForRepay(uint256 repayAmount) internal view returns (uint256) {
+        uint256 wbtcPrice = i_oracle.getWbtcPrice();
+        require(wbtcPrice > 0, "price=0");
+
+        uint256 numerator = repayAmount * (RAY + LIQUIDATION_BONUS) * (10 ** i_wbtcDecimals);
+        uint256 denominator = wbtcPrice * RAY;
+        return _divUp(numerator, denominator);
     }
 
     function _totalSupplyCurrent() internal view returns (uint256) {
